@@ -1,0 +1,700 @@
+<html>
+<head>
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    // exposed internals for debugging
+    let pClient;
+    let pEngine;
+    let pPhysics;
+    let pConfig;
+    let pUtils;
+    let pCalls;
+    let pBodyImages;
+    let pDomain;
+    let pSound;
+    let pEffects;
+
+    let pBackCanvas;
+    let pBackCanvasContext;
+    let pOrbitCanvas;
+    let pOrbitCanvasContext;
+    let pGameCanvas;
+    let pGameCanvasContext;
+
+    let pBoosterDrawBuffer;
+  </script>
+
+  <script type="module">
+    import LocalClient from "./client/local-client.js";
+    import * as config from "./common/config.mjs";
+    import * as utils from "./common/utils.mjs";
+    import * as physics from "./common/physics.mjs";
+    import * as domain from "./common/domain.mjs";
+    import Graphics from "./graphics/graphics.js";
+    import Diag from "./diag.js";
+
+    pDomain = domain;
+    pPhysics = physics;
+    pConfig = config;
+    pUtils = utils;
+
+    let printDiag = true;
+    let drawBodies = true;
+    let drawNames = false;
+    let drawRespawns = false;
+
+    const urlSearchParams = (new URL(window.location)).searchParams;
+
+    let running = true;
+
+    const game = () => {
+      const bodyImages = (() => {
+        const colors = [
+          'chartreuse', 'green', 'orange', 'tan',
+          'crimson', 'lightgreen', 'red', 'wheat',
+          'cyan', 'lime', 'royalblue', 'yellow'
+        ];
+        return colors.reduce((acc, curr) => {
+          acc[curr] = document.getElementById(`body-${curr}`);
+          return acc;
+        }, {});
+      })();
+      const backgroundImage = document.getElementById('background');
+
+      pBodyImages = bodyImages;
+
+      const stopButton = document.getElementById('stop');
+      stopButton.addEventListener('click', () => {
+        client.getEngine().stop();
+        running = false;
+      });
+
+      const boosterDrawBuffer = utils.LinkedQueue();
+      pBoosterDrawBuffer = boosterDrawBuffer;
+      let boostersPlaying = 0;
+
+      const printDiagCheckbox = document.getElementById('print-diag');
+      printDiagCheckbox.addEventListener('change', () => {
+        printDiag = !printDiag;
+        if (printDiag === true) {
+          printDiagCheckbox.setAttribute('checked', 'checked');
+        }
+        else {
+          printDiagCheckbox.removeAttribute('checked');
+        }
+      });
+
+      const drawBodiesCheckbox = document.getElementById('draw-bodies');
+      drawBodiesCheckbox.addEventListener('change', () => {
+        drawBodies = !drawBodies;
+        if (drawBodies === true) {
+          drawBodiesCheckbox.setAttribute('checked', 'checked');
+        }
+        else {
+          drawBodiesCheckbox.removeAttribute('checked');
+        }
+      });
+      const drawNamesCheckbox = document.getElementById('draw-names');
+      drawNamesCheckbox.addEventListener('change', () => {
+        drawNames = !drawNames;
+        if (drawNames === true) {
+          drawNamesCheckbox.setAttribute('checked', 'checked');
+        }
+        else {
+          drawNamesCheckbox.removeAttribute('checked');
+        }
+      });
+      const drawRespawnsCheckbox = document.getElementById('draw-respawns');
+      drawRespawnsCheckbox.addEventListener('change', () => {
+        drawRespawns = !drawRespawns;
+        if (drawRespawns === true) {
+          drawRespawnsCheckbox.setAttribute('checked', 'checked');
+        }
+        else {
+          drawRespawnsCheckbox.removeAttribute('checked');
+        }
+      });
+
+      const scaleRadioButtons = document.getElementsByName('scale');
+      scaleRadioButtons.forEach((scaleRadioButton) => {
+        scaleRadioButton.addEventListener('change', (e) => {
+          if (e.target.getAttribute('checked') !== 'checked') {
+            scaleRadioButtons.forEach((scaleRadioButton) => scaleRadioButton.removeAttribute('checked'));
+            e.target.setAttribute('checked', 'checked');
+            scale = Number(e.target.getAttribute('value'));
+            backCanvas.width = (config.getMaxDist() * 2) * scale;
+            backCanvas.height = (config.getMaxDist() * 2) * scale;
+            orbitCanvas.width = (config.getMaxDist() * 2) * scale;
+            orbitCanvas.height = (config.getMaxDist() * 2) * scale;
+            gameCanvas.width = (config.getMaxDist() * 2) * scale;
+            gameCanvas.height = (config.getMaxDist() * 2) * scale;
+            graphics.drawBorder();
+          }
+        });
+      });
+
+      const backCanvas = document.getElementById('back');
+      const backCanvasContext = backCanvas.getContext('2d');
+      const orbitCanvas = document.getElementById('orbit');
+      const orbitCanvasContext = orbitCanvas.getContext('2d');
+      const gameCanvas = document.getElementById('game');
+      const gameCanvasContext = gameCanvas.getContext('2d');
+
+      pBackCanvas = backCanvas;
+      pBackCanvasContext = backCanvasContext;
+      pOrbitCanvas = orbitCanvas;
+      pOrbitCanvasContext = orbitCanvasContext;
+      pGameCanvas = gameCanvas;
+      pGameCanvasContext = gameCanvasContext;
+
+      let scale = Array.from(scaleRadioButtons).reduce(
+        (acc, scaleRadioButton) => scaleRadioButton.getAttribute('checked') === 'checked' ? Number(scaleRadioButton.getAttribute('value')) : acc, 1);
+
+      const mousePosition = domain.Vec3(0, 0, 0);
+
+      let mouseHoverPlanetIndex = null;
+
+      const updateMousePosition = (e) => {
+        const rect = gameCanvas.getBoundingClientRect();
+        const x = ((e.clientX - rect.left) - (gameCanvas.width / 2)) / scale;
+        const y = ((e.clientY - rect.top) - (gameCanvas.height / 2)) / scale;
+
+        mousePosition.setXyz(x, 0, y);
+      };
+
+      const updateMousePositionEventListener = (e) => {
+        gameCanvas.removeEventListener('mousemove', updateMousePositionEventListener);
+        updateMousePosition(e);
+        setTimeout(() => {
+          gameCanvas.addEventListener('mousemove', updateMousePositionEventListener);
+        }, 50);
+      };
+
+      gameCanvas.addEventListener('mousemove', updateMousePositionEventListener);
+
+      const mouseHoverPlanet = () => {
+        if (client.getPlayer() === null || client.getPlayer().getUnit().getBodyFrame().isDestroyed()) {
+          const engine = client.getEngine();
+          const planetsFrame = engine.getCurrBodiesFrame().getPlanetsFrame();
+
+          const some = engine.getPlanets().some((planet, i) => {
+            const planetFrame = planetsFrame[i];
+            if (planetFrame.isNotDestroyed()) {
+              const position = planetFrame.getPosition();
+              if (mousePosition.getX() > (position.getX() - planet.getRadius()) &&
+                  mousePosition.getX() < (position.getX() + planet.getRadius()) &&
+                  mousePosition.getZ() > (position.getZ() - planet.getRadius()) &&
+                  mousePosition.getZ() < (position.getZ() + planet.getRadius())) {
+                mouseHoverPlanetIndex = i;
+
+                return true;
+              }
+            }
+          });
+
+          if (some === false) {
+            mouseHoverPlanetIndex = null;
+          }
+        }
+      };
+
+      const mouseHoverPlanetLoop = () => {
+        mouseHoverPlanet();
+        setTimeout(mouseHoverPlanetLoop, 50);
+      };
+
+      setTimeout(mouseHoverPlanetLoop, 0);
+
+      let leftMouseButtonActionRunning = false;
+
+      let lastTraversalDirectionCalculated = utils.Timestamp();
+      let traversalDirection = null;
+
+      const calculateTraversalDirection = () => {
+        const planetTraversal = client.getPlayer().getPlanetTraversal();
+        const planet = client.getEngine().getPlanets()[planetTraversal.getPlanetIndex()];
+        const planetBodyFrame = client.getEngine().getCurrBodiesFrame().getPlanetsFrame()[planetTraversal.getPlanetIndex()];
+        const planetPosition = planetBodyFrame.getPosition();
+        const unitPosition = client.getPlayer().getUnit().getBodyFrame().getPosition();
+        const unit = client.getPlayer().getUnit();
+
+        const stepClockwisePosition = (() => {
+          const radians = (planetTraversal.getRadians() + (20 / (planet.getRadius() * 100))) % (Math.PI * 2);
+          const steppedClockwisePosition = unitPosition.copyOf();
+          steppedClockwisePosition.setX(planetPosition.getX() + (Math.cos(radians) * (planet.getRadius() + (unit.getRadius() * 2))));
+          steppedClockwisePosition.setZ(planetPosition.getZ() + (Math.sin(radians) * (planet.getRadius() + (unit.getRadius() * 2))));
+          return steppedClockwisePosition;
+        })();
+
+        const stepCounterClockwisePosition = (() => {
+          const radians = (planetTraversal.getRadians() - (20 / (planet.getRadius() * 100))) % (Math.PI * 2);
+          const steppedCounterClockwisePosition = unitPosition.copyOf();
+          steppedCounterClockwisePosition.setX(planetPosition.getX() + (Math.cos(radians) * (planet.getRadius() + (unit.getRadius() * 2))));
+          steppedCounterClockwisePosition.setZ(planetPosition.getZ() + (Math.sin(radians) * (planet.getRadius() + (unit.getRadius() * 2))));
+          return steppedCounterClockwisePosition;
+        })();
+
+        const distanceToClockwisePosition = Math.sqrt(((mousePosition.getX() - stepClockwisePosition.getX()) ** 2) + ((mousePosition.getZ() - stepClockwisePosition.getZ()) ** 2));
+        const distanceToCounterClockwisePosition = Math.sqrt(((mousePosition.getX() - stepCounterClockwisePosition.getX()) ** 2) + ((mousePosition.getZ() - stepCounterClockwisePosition.getZ()) ** 2));
+
+        if (distanceToClockwisePosition > distanceToCounterClockwisePosition) {
+          return domain.TraversalDirection.COUNTERCLOCKWISE;
+        }
+        else {
+          return domain.TraversalDirection.CLOCKWISE;
+        }
+      };
+
+      const MouseButtonHolder = (_action = () => {}) => {
+        const action = typeof _action === 'function' ? _action : () => {};
+
+        let down = false;
+
+        const actionLoop = () => {
+          if (down) {
+            action();
+            setTimeout(actionLoop, 0);
+          }
+        };
+
+        return {
+          press: () => {
+            down = true;
+            setTimeout(actionLoop, 0);
+          },
+          release: () => {
+            down = false;
+          }
+        }
+      };
+
+      const leftMouseButtonHolder = MouseButtonHolder(() => {
+        if (leftMouseButtonActionRunning === false) {
+          leftMouseButtonActionRunning = true;
+
+          const playerIsTraversing = client.getPlayer() !== null && client.getPlayer().getUnit().getBodyFrame().isNotDestroyed() && client.getEngine().getUnitIndexPlanetTraversal().has(client.getPlayer().getUnitIndex());
+
+          if (client.getPlayer() !== null && client.getPlayer().getUnit().getBodyFrame().isNotDestroyed()) {
+            if (playerIsTraversing === false) {
+              if (sound !== null && effects !== null) {
+                if (boostersPlaying < 10) {
+                  boostersPlaying++;
+                  effects.playBoosterNode();
+                  setTimeout(() => boostersPlaying--, Math.random() * 2000);
+                }
+              }
+
+              if (boosterDrawBuffer.getSize() < 10) {
+                const bodyFrame = client.getPlayer().getUnit().getBodyFrame();
+                const directionVec = domain.Vec3(Math.cos(bodyFrame.getOrientation()), 0, Math.sin(bodyFrame.getOrientation())).mulScalarAndGet(-2);
+                const boosterPosition = bodyFrame.getPosition().copyOf().addAndGet(directionVec.copyOf().mulScalarAndGet(10));
+                const boosterVelocity = directionVec.copyOf().addAndGet(bodyFrame.getVelocity());
+                const boosterDrawNode = Graphics.BoosterDrawNode(boosterPosition, boosterVelocity, utils.Timestamp.now());
+                boosterDrawBuffer.addLast(boosterDrawNode);
+              }
+
+              client.handleFace(mousePosition);
+              client.handleUp();
+            }
+            else {
+              const now = utils.Timestamp.now();
+              if (traversalDirection === null || (now.getMillisecond() - lastTraversalDirectionCalculated.getMillisecond() > 100)) {
+                lastTraversalDirectionCalculated = now;
+                traversalDirection = calculateTraversalDirection();
+              }
+
+              if (traversalDirection === domain.TraversalDirection.COUNTERCLOCKWISE) {
+                client.handleLeft();
+              }
+              else {
+                client.handleRight();
+              }
+            }
+          }
+          setTimeout(() => leftMouseButtonActionRunning = false, 20);
+        }
+      });
+
+      gameCanvas.addEventListener('mouseout', () => {
+        leftMouseButtonHolder.release();
+      });
+
+      gameCanvas.addEventListener('mouseup', (e) => {
+        if (e.button === 0) {
+          leftMouseButtonHolder.release();
+        }
+      });
+
+      gameCanvas.addEventListener('contextmenu', (e) => {
+        if (e.button === 2) {
+          e.preventDefault();
+        }
+      });
+
+      gameCanvas.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        const playerExists = client.getPlayer() !== null && client.getPlayer().getUnit().getBodyFrame().isNotDestroyed();
+        switch (e.button) {
+          case 0: {
+            if (playerExists) {
+              leftMouseButtonHolder.press();
+            }
+            else if (!playerExists && mouseHoverPlanetIndex !== null) {
+              client.leave();
+              client.join(mouseHoverPlanetIndex);
+              if (sound !== null && effects !== null) {
+                effects.playSpawnNode();
+              }
+              mouseHoverPlanetIndex = null;
+            }
+            break;
+          }
+          case 2: {
+            const playerExistsAndIsTraversing = playerExists && client.getEngine().getUnitIndexPlanetTraversal().has(client.getPlayer().getUnitIndex());
+            if (playerExistsAndIsTraversing) {
+              client.handleUp();
+              if (sound !== null && effects !== null) {
+                effects.playLeapNode();
+              }
+            }
+            break;
+          }
+        }
+      });
+
+      const fpsDeltas = [];
+      const fpsDeltasMax = 100;
+      let fpsLast = null;
+
+      const render = (timestamp, graphics) => {
+        if (fpsLast && timestamp) {
+          const fpsDelta = timestamp - fpsLast;
+          fpsDeltas.push(fpsDelta);
+          if (fpsDeltas.length > fpsDeltasMax) {
+            fpsDeltas.shift();
+          }
+        }
+        fpsLast = timestamp;
+
+        animate(graphics);
+
+        if (running) {
+          requestAnimationFrame((timestamp) => render(timestamp, graphics));
+        }
+      };
+
+      const calls = {
+        animateCalls: 0n,
+        drawCalls: 0n,
+        drawSkips: 0n,
+        drawing: false
+      };
+      pCalls = calls;
+
+      const animate = (graphics) => {
+        calls.animateCalls++;
+        const draw = (engine) => {
+          while (explosionDrawBuffer.isNotEmpty()) {
+            const explosionDrawNode = explosionDrawBuffer.pollFirst();
+            graphics.addExplosion(explosionDrawNode.getPosition(), explosionDrawNode.getVelocity(), explosionDrawNode.getBody());
+          }
+          graphics.draw(client.getPlayer(),
+                        engine.getStars(), engine.getPlanets(), engine.getAsteroids(), engine.getUnits(), engine.getUnitIndexPlanetTraversal(), mouseHoverPlanetIndex,
+                        engine.getCurrBodiesFrame(), engine.getFramesBuffer(), engine.getCurrTimestamp(), engine.getTicksThisSecond()
+          );
+        };
+
+        if (calls.drawing === false) {
+          calls.drawCalls++;
+          calls.drawing = true;
+
+          setTimeout(() => {
+            gameCanvasContext.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
+            draw(client.getEngine());
+
+            calls.drawing = false;
+          }, 0);
+        }
+        else {
+          calls.drawSkips++;
+        }
+      };
+
+      const explosionDrawBuffer = utils.LinkedQueue();
+      const orbitDrawBuffer = utils.LinkedQueue();
+      const orbitClearBuffer = utils.LinkedQueue();
+
+      const graphics = Graphics(
+        backCanvas, backCanvasContext,
+        orbitCanvas, orbitCanvasContext,
+        gameCanvas, gameCanvasContext,
+        backgroundImage, bodyImages,
+        orbitDrawBuffer, orbitClearBuffer, boosterDrawBuffer,
+        () => scale, () => drawBodies, () => drawNames, () => drawRespawns
+      );
+
+      const initCallback = () => {
+        const diagDiv = document.getElementById('diag');
+        diagDiv.addEventListener('mouseenter', () => {
+          diagDiv.style.zIndex = '100';
+        });
+        diagDiv.addEventListener('mouseleave', () => {
+          diagDiv.style.zIndex = '0';
+        });
+        diagDiv.style.display = 'block';
+        backCanvas.style.display = 'block';
+        orbitCanvas.style.display = 'block';
+        gameCanvas.style.display = 'block';
+        graphics.drawBorder();
+
+        setTimeout(() => render(null, graphics));
+        const engine = client.getEngine();
+        const diagCallbacks = Diag.DiagCallbacks(
+          () => engine.getCurrBodiesFrame(),
+          () => engine.getStartTime(),
+          () => engine.getAppenderDeltaTimer(),
+          () => engine.getAdvancerDeltaTimer(),
+          () => engine.getFramesBuffer(),
+          () => engine.getFrameDiffBuffer(),
+          () => calls
+        );
+        const diag = Diag(diagCallbacks, () => fpsDeltas.length === 0 ? 0 : 1001 / (fpsDeltas.reduce((acc, fpsDelta) => acc + fpsDelta, 0) / fpsDeltas.length));
+        setTimeout(() => updateDiag(diag));
+      };
+
+      const client = (() => {
+        let prevMassiveBodiesFrame = null;
+        const framesNodeCallback = (framesNode) => {
+
+          while (orbitDrawBuffer.isNotEmpty() && framesNode.getSecond() - orbitDrawBuffer.getFirst().getSecond() > 10) {
+            orbitDrawBuffer.pollFirst();
+          }
+
+          framesNode.getMassiveBodiesFrames().forEach((massiveBodiesFrame, i) => {
+            if (prevMassiveBodiesFrame !== null) {
+              const tick = framesNode.getOffset() + i;
+              const orbitDrawNode = Graphics.OrbitDrawNode(framesNode.getSecond(), tick, massiveBodiesFrame, prevMassiveBodiesFrame);
+              orbitDrawBuffer.addLast(orbitDrawNode);
+            }
+            prevMassiveBodiesFrame = massiveBodiesFrame;
+          });
+        };
+
+        const advanceCallback = (massiveBodiesFrame, unitIndexPlanetTraversal, etherealBodiesCollisions, second, tick) => {
+
+          const now = utils.Timestamp.now();
+          while (explosionDrawBuffer.isNotEmpty() && (now.getSecond() - explosionDrawBuffer.getFirst().getTimestamp().getSecond()) > 2) {
+            explosionDrawBuffer.pollFirst();
+          }
+
+          if (massiveBodiesFrame.hasDiff()) {
+            massiveBodiesFrame.getNewDestroyedPlanetIndexes().forEach((newDestroyedPlanetIndex) => {
+              const planet = client.getEngine().getPlanets()[newDestroyedPlanetIndex];
+              const planetDestroyBodyFrame = massiveBodiesFrame.getPlanetDestroys().get(newDestroyedPlanetIndex).getDestroyBodyFrame();
+              explosionDrawBuffer.addLast(Graphics.ExplosionDrawNode(planetDestroyBodyFrame.getPosition(), planetDestroyBodyFrame.getVelocity(), planet, now));
+            });
+            massiveBodiesFrame.getNewDestroyedAsteroidIndexes().forEach((newDestroyedAsteroidIndex) => {
+              const asteroid = client.getEngine().getAsteroids()[newDestroyedAsteroidIndex];
+              const asteroidDestroyBodyFrame = massiveBodiesFrame.getAsteroidDestroys().get(newDestroyedAsteroidIndex).getDestroyBodyFrame();
+              explosionDrawBuffer.addLast(Graphics.ExplosionDrawNode(asteroidDestroyBodyFrame.getPosition(), asteroidDestroyBodyFrame.getVelocity(), asteroid, now));
+            });
+          }
+          if (client.getPlayer() !== null && etherealBodiesCollisions.getNewUnitIndexPlanetTraversal().has(client.getPlayer().getUnitIndex())) {
+            client.getPlayer().setPlanetTraversal(etherealBodiesCollisions.getNewUnitIndexPlanetTraversal().get(client.getPlayer().getUnitIndex()));
+          }
+
+          etherealBodiesCollisions.getNewDestroyedUnitIndexes().forEach((newDestroyedUnitIndex) => {
+
+            const unit = client.getEngine().getUnits()[newDestroyedUnitIndex];
+            const unitBodyFrame = unit.getBodyFrame();
+            const newDestroyedUnitIndexPlanetTraversal = etherealBodiesCollisions.getNewDestroyedUnitIndexPlanetTraversal();
+            const explosionVelocity = newDestroyedUnitIndexPlanetTraversal.has(newDestroyedUnitIndex) ?
+                                      massiveBodiesFrame.getPlanetsFrame()[newDestroyedUnitIndexPlanetTraversal.get(newDestroyedUnitIndex).getPlanetIndex()].getVelocity() :
+                                      unitBodyFrame.getVelocity();
+            explosionDrawBuffer.addLast(Graphics.ExplosionDrawNode(unitBodyFrame.getPosition(), explosionVelocity, unit, now));
+          });
+
+          if (sound !== null && effects !== null) {
+            if (massiveBodiesFrame.getNewDestroyedPlanetIndexes().length > 0) {
+              effects.playExplosionNode();
+            }
+            if (massiveBodiesFrame.getNewDestroyedAsteroidIndexes().length > 0) {
+              effects.playExplosionNodeSoft();
+            }
+            if (etherealBodiesCollisions.getNewDestroyedUnitIndexes().length > 0) {
+              effects.playDeathNode();
+            }
+            if (etherealBodiesCollisions.getNewUnitIndexPlanetTraversal().size > 0) {
+              effects.playLandNode();
+            }
+          }
+        };
+
+        return LocalClient(initCallback, null, framesNodeCallback, advanceCallback);
+
+      })();
+
+      pClient = client;
+      pEngine = client.getEngine();
+
+      backCanvas.width = (config.getMaxDist() * 2) * scale;
+      backCanvas.height = (config.getMaxDist() * 2) * scale;
+      orbitCanvas.width = (config.getMaxDist() * 2) * scale;
+      orbitCanvas.height = (config.getMaxDist() * 2) * scale;
+      gameCanvas.width = (config.getMaxDist() * 2) * scale;
+      gameCanvas.height = (config.getMaxDist() * 2) * scale;
+
+      const updateDiag = (diag) => {
+        if (printDiag) {
+          diag.print();
+        }
+        if (running) {
+          setTimeout(() => updateDiag(diag), 100);
+        }
+      };
+    };
+
+    let sound = null;
+    let effects = null;
+
+    const lazySoundLoader = utils.LazyLoader((loaderFnCallback) => {
+      import('./sound.js')
+        .then((_soundModule) => {
+          const Sound = _soundModule.default;
+          sound = Sound();
+          pSound = sound;
+          loaderFnCallback(sound);
+        });
+    });
+
+    window.addEventListener('load', () => {
+      const startButton = document.getElementById('start');
+      const musicCheckbox = document.getElementById('music');
+      if (!urlSearchParams.has('no-music')) {
+        musicCheckbox.setAttribute('checked', 'checked');
+      }
+      const soundFxCheckbox = document.getElementById('sound-fx');
+      if (!urlSearchParams.has('no-soundfx')) {
+        soundFxCheckbox.setAttribute('checked', 'checked');
+      }
+
+      startButton.addEventListener('click', () => {
+        startButton.remove();
+
+        musicCheckbox.addEventListener('change', () => {
+          if (musicCheckbox.checked) {
+            lazySoundLoader.get((_sound) => _sound.getLazyMusicLoader().get((modulesAndAlternator) => {
+              const alternator = modulesAndAlternator[1];
+              alternator.start();
+            }));
+          }
+          else {
+            if (sound !== null && sound.getAlternator() !== null) {
+              sound.getAlternator().stop();
+            }
+          }
+        });
+        soundFxCheckbox.addEventListener('change', () => {
+          if (soundFxCheckbox.checked) {
+            lazySoundLoader.get((_sound) => _sound.getLazySoundFxLoader().get((sampleUtilsAndEffects) => {
+              effects = sampleUtilsAndEffects[1];
+              pEffects = effects;
+            }));
+          }
+          else {
+            effects.stop();
+            effects = null;
+            pEffects = effects;
+          }
+        });
+
+        game();
+
+        if (musicCheckbox.checked) {
+          lazySoundLoader.get((_sound) => _sound.getLazyMusicLoader().get((modulesAndAlternator) => {
+            const alternator = modulesAndAlternator[1];
+            alternator.start();
+          }));
+        }
+        if (soundFxCheckbox.checked) {
+          lazySoundLoader.get((_sound) => _sound.getLazySoundFxLoader().get((sampleUtilsAndEffects) => {
+            effects = sampleUtilsAndEffects[1];
+            pEffects = effects;
+          }));
+        }
+
+      });
+    });
+
+  </script>
+</head>
+<body>
+<div>
+  <div style="display: flex; margin-bottom: 10px; z-index: 5; background-color: white;">
+    <input type="checkbox" id="music" class="toggle">
+    <label for="music" id="music-label" style="margin-right: 10px">Music</label>
+    <input type="checkbox" id="sound-fx" class="toggle">
+    <label for="sound-fx" id="sound-fx-label" style="margin-right: 10px">Sound FX</label>
+    <input type="button" id="start" value="start" style="margin-right: 10px" />
+  </div>
+
+  <div style="position: relative">
+    <canvas id="game" style="display: none;"></canvas>
+    <canvas id="orbit" style="display: none;"></canvas>
+    <canvas id="back" style="display: none;"></canvas>
+  </div>
+  <div id="diag" style="display: none;">
+    <span id="currSecond1"></span>
+    <br />
+    <input type="button" id="stop" value="stop" style="margin-right: 10px" /><span id="fps"></span>
+    <br />
+    <label for="print-diag">diag</label><input type="checkbox" id="print-diag" checked>
+    <label for="draw-bodies">bodies</label><input type="checkbox" id="draw-bodies" checked>
+    <label for="draw-names">names</label><input type="checkbox" id="draw-names">
+    <label for="draw-respawns">respawns</label><input type="checkbox" id="draw-respawns">
+    <br />
+    <label for="scale25">25%</label><input type="radio" id="scale25" name="scale" value="0.25">
+    <label for="scale50">50%</label><input type="radio" id="scale50" name="scale" value="0.5">
+    <label for="scale75">75%</label><input type="radio" id="scale75" name="scale" value="0.75">
+    <label for="scale100">100%</label><input type="radio" id="scale100" name="scale" value="1" checked>
+    <br />
+    <table id="bodies"></table>
+    <br />
+    <div>
+      <span id="currSecond2"></span>
+      <br />
+      <span id="calls"></span>
+      <br />
+      <span id="appender"></span>
+      <br />
+      <span id="advancer"></span>
+      <br />
+      <span id="framesBuffer"></span>
+      <br />
+      <span id="frameDiffBuffer"></span>
+      <br />
+    </div>
+  </div>
+</div>
+
+<!--
+thanks rawdanitsu @ opengameart.org
+https://opengameart.org/users/rawdanitsu
+https://opengameart.org/content/2d-planets-0
+-->
+<img id="background"      src="https://kairuz.github.io/assets/images/background-sq-1500.png"     style="display: none;" />
+<img id="body-chartreuse" src="https://kairuz.github.io/assets/images/bodies/body-chartreuse.png" style="display: none;" />
+<img id="body-crimson"    src="https://kairuz.github.io/assets/images/bodies/body-crimson.png"    style="display: none;" />
+<img id="body-cyan"       src="https://kairuz.github.io/assets/images/bodies/body-cyan.png"       style="display: none;" />
+<img id="body-green"      src="https://kairuz.github.io/assets/images/bodies/body-green.png"      style="display: none;" />
+<img id="body-lightgreen" src="https://kairuz.github.io/assets/images/bodies/body-lightgreen.png" style="display: none;" />
+<img id="body-lime"       src="https://kairuz.github.io/assets/images/bodies/body-lime.png"       style="display: none;" />
+<img id="body-orange"     src="https://kairuz.github.io/assets/images/bodies/body-orange.png"     style="display: none;" />
+<img id="body-red"        src="https://kairuz.github.io/assets/images/bodies/body-red.png"        style="display: none;" />
+<img id="body-royalblue"  src="https://kairuz.github.io/assets/images/bodies/body-royalblue.png"  style="display: none;" />
+<img id="body-tan"        src="https://kairuz.github.io/assets/images/bodies/body-tan.png"        style="display: none;" />
+<img id="body-wheat"      src="https://kairuz.github.io/assets/images/bodies/body-wheat.png"      style="display: none;" />
+<img id="body-yellow"     src="https://kairuz.github.io/assets/images/bodies/body-yellow.png"     style="display: none;" />
+
+</body>
+</html>
