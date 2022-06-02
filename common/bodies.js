@@ -1,4 +1,4 @@
-import {Body, BodyFrame} from "./domain.mjs";
+import {Body, BodyFrame} from "./domain.js";
 
 
 const stars = [

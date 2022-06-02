@@ -1,5 +1,5 @@
-import * as utils from "./common/utils.mjs";
-import {stars, planets, asteroids} from "./common/bodies.mjs";
+import * as utils from "./common/utils.js";
+import {stars, planets, asteroids} from "./common/bodies.js";
 
 
 const defaultGetEngineCurrBodiesFrame = () => {};
@@ -148,7 +148,6 @@ const Diag = (_callbacks, _calcFps) => {
         `size=${framesBuffer.getSize()},` +
         `firstSec=${framesBuffer.isNotEmpty() ? framesBuffer.getFirst().getSecond() : 'nil'}, ` +
         `lastSec=${framesBuffer.isNotEmpty() ? framesBuffer.getLast().getSecond() : 'nil'} ` +
-      // `): ${Array.from(framesBuffer).map((framesNode) => framesNode.getSecond()).join(';')}`;
       `)`;
 
     const frameDiffBuffer = callbacks.getEngineFrameDiffBuffer();
@@ -157,7 +156,6 @@ const Diag = (_callbacks, _calcFps) => {
         `size=${frameDiffBuffer.getSize()},` +
         `firstSec=${frameDiffBuffer.isNotEmpty() ? frameDiffBuffer.getFirst().getSecond() : 'nil'}, ` +
         `lastSec=${frameDiffBuffer.isNotEmpty() ? frameDiffBuffer.getLast().getSecond() : 'nil'} ` +
-      // `): ${Array.from(frameDiffBuffer).map((frameDiffNode) => `${frameDiffNode.getOrdinal()},${frameDiffNode.getSecond()}`).join(';')}`;
       `)`;
     const calls = callbacks.getCalls();
     callsSpan.textContent = `calls animate=${calls.animateCalls}, draw=${calls.drawCalls}, skips=${calls.drawSkips}, drawing=${calls.drawing}`;

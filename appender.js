@@ -1,8 +1,8 @@
-import * as config from "./common/config.mjs";
-import * as physics from "./common/physics.mjs";
-import {MassiveBodiesFrame, FrameDiffNode, FramesNode} from "./common/domain.mjs";
-import {stars, planets, asteroids} from "./common/bodies.mjs";
-import {Sequence} from "./common/utils.mjs";
+import * as config from "./common/config.js";
+import * as physics from "./common/physics.js";
+import {MassiveBodiesFrame, FrameDiffNode, FramesNode} from "./common/domain.js";
+import {stars, planets, asteroids} from "./common/bodies.js";
+import {Sequence} from "./common/utils.js";
 
 
 const appendBodiesFrameLoop = (chunkIndex, chunkI, second, tick, massiveBodiesFrames,

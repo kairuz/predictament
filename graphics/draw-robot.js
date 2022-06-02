@@ -1,6 +1,6 @@
-import {Timestamp, degToRad} from "../common/utils.mjs";
+import {Timestamp, degToRad} from "../common/utils.js";
 import Explosion from "./explosion.js";
-import {Vec3} from "../common/domain.mjs";
+import {Vec3} from "../common/domain.js";
 
 
 const Particle = Explosion.Particle;

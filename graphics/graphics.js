@@ -1,4 +1,4 @@
-import * as config from "../common/config.mjs";
+import * as config from "../common/config.js";
 import drawBodies from "./draw-bodies.js";
 import drawOrbits from "./draw-orbits.js";
 import drawRobot from "./draw-robot.js";

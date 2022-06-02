@@ -1,6 +1,6 @@
-import * as config from './config.mjs';
-import {Vec3, MassiveBodiesFrame, BodyDestroy, BodySpawn, EtherealBodiesCollisions, PlanetTraversal} from './domain.mjs';
-import {planetsStartingBodyFrames, asteroidsStartingBodyFrames} from './bodies.mjs';
+import * as config from './config.js';
+import {Vec3, MassiveBodiesFrame, BodyDestroy, BodySpawn, EtherealBodiesCollisions, PlanetTraversal} from './domain.js';
+import {planetsStartingBodyFrames, asteroidsStartingBodyFrames} from './bodies.js';
 
 
 // todo: **LOTS** of duplication in this module
@@ -498,7 +498,7 @@ const calcUnitsCollisions = (units) => {
 
 const applyGravityForMassiveBodies = (stars, planets, asteroids) => {
   // todo support multiple stars - not applying gravity to stars - currently only single star
-  // calcStarsGravs([star]).forEach((onPlanetGravs, i) => {
+  // calcStarsGravs([star]).forEach((onPlanetGravs, i) =>
 
   calcPlanetsGravsFromStars(planets, stars)
     .forEach((onPlanetGravs, i) => {

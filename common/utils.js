@@ -1,4 +1,4 @@
-import * as config from './config.mjs';
+import * as config from './config.js';
 
 
 const Timestamp = (_millisecond, _second, _realMillisecond, _realSecond) => {

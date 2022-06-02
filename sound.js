@@ -1,4 +1,4 @@
-import {LazyLoader, Sequence} from "./common/utils.mjs";
+import {LazyLoader, Sequence} from "./common/utils.js";
 
 
 const Effects = (audioContext, SampleUtils,

@@ -1,4 +1,4 @@
-import * as config from "../common/config.mjs";
+import * as config from "../common/config.js";
 
 
 const drawOrbitBuffer = (context,

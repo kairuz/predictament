@@ -1,8 +1,8 @@
-import * as config from './common/config.mjs';
-import {MassiveBodiesFrame, FramesNode, FrameDiffNode, BodyDestroy, PlanetTraversal} from './common/domain.mjs';
-import {Timestamp, LinkedQueue, Sequence, DeltaTimer} from './common/utils.mjs';
-import * as physics from './common/physics.mjs';
-import {stars, planetsStartingBodyFrames, planets, asteroidsStartingBodyFrames, asteroids, units} from './common/bodies.mjs';
+import * as config from './common/config.js';
+import {MassiveBodiesFrame, FramesNode, FrameDiffNode, BodyDestroy, PlanetTraversal} from './common/domain.js';
+import {Timestamp, LinkedQueue, Sequence, DeltaTimer} from './common/utils.js';
+import * as physics from './common/physics.js';
+import {stars, planetsStartingBodyFrames, planets, asteroidsStartingBodyFrames, asteroids, units} from './common/bodies.js';
 
 
 const defaultFrameDiffNodeCallback = (_frameDiffNode) => {};
@@ -160,7 +160,7 @@ const Engine = (
     unitDestroys.add(unitIndex);
   };
 
-  const appenderWorker = new Worker(new URL('./appender.mjs', import.meta.url), {type: 'module'});
+  const appenderWorker = new Worker(new URL('./appender.js', import.meta.url), {type: 'module'});
 
   const expectedChunks = (config.getTicksPerSecond() / config.getAppenderChunkSize()) + (config.getTicksPerSecond() % config.getAppenderChunkSize() === 0 ? 0 : 1);
 
@@ -263,8 +263,6 @@ const Engine = (
         appenderWorker.postMessage(workerMessage);
       }
 
-
-      // setTimeout(appenderLoop, ((config.getGameMillisecond() * config.getMomentMillis()) / 2) - ((config.getGameMillisecond() * config.getMomentMillis()) / 10));
       setTimeout(appenderLoop, ((config.getMomentMillis() / config.getGameMillisecond()) / 2) - ((config.getMomentMillis() / config.getGameMillisecond()) / 10));
     }
     else {
@@ -337,7 +335,6 @@ const Engine = (
   const advancerLoop = () => {
     if (running === true) {
       advancer();
-      // setTimeout(advancerLoop, ((config.getGameMillisecond() * config.getMomentMillis()) / 2) - ((config.getGameMillisecond() * config.getMomentMillis()) / 10));
       setTimeout(advancerLoop, ((config.getMomentMillis() / config.getGameMillisecond()) / 2) - ((config.getMomentMillis() / config.getGameMillisecond()) / 10));
     }
     else {

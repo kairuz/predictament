@@ -1,5 +1,5 @@
-import {Vec3} from "../common/domain.mjs";
-import {Timestamp} from "../common/utils.mjs";
+import {Vec3} from "../common/domain.js";
+import {Timestamp} from "../common/utils.js";
 
 
 const Particle = (_position, _velocity, _color, _radius, _alpha = 1, _decay = 0.01) => {

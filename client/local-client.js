@@ -1,6 +1,6 @@
-import {units} from "../common/bodies.mjs";
-import {Player, TraversalDirection} from "../common/domain.mjs";
-import Engine from "../engine.mjs";
+import {units} from "../common/bodies.js";
+import {Player, TraversalDirection} from "../common/domain.js";
+import Engine from "../engine.js";
 
 
 const defaultInitCallback = () => {};
