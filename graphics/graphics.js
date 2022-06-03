@@ -2,7 +2,7 @@ import * as config from "../common/config.js";
 import drawBodies from "./draw-bodies.js";
 import drawOrbits from "./draw-orbits.js";
 import drawRobot from "./draw-robot.js";
-import Explosion from "./explosion.js";
+import {Explosion} from "./explosion.js";
 
 
 const defaultGetScale = () => 1;
@@ -102,9 +102,7 @@ const Graphics = (
         gameCanvasContext.restore();
       }
 
-
       drawBodies.drawBodiesType(gameCanvasContext, 'A', asteroids, massiveBodiesFrame.getAsteroidsFrame(), bodyImages);
-      // explosions.forEach((explosion) => explosion.draw(gameCanvasContext));
       explosions.forEach((explosion) => {
         explosion.update();
         explosion.draw(gameCanvasContext);
@@ -121,7 +119,6 @@ const Graphics = (
 
     const doneExplosionIndexes = [];
     explosions.forEach((explosion, i) => {
-      // explosion.update();
       if (explosion.isDone()) {
         doneExplosionIndexes.push(i);
       }
@@ -194,7 +191,6 @@ const BoosterDrawNode = (_position, _velocity, _timestamp) => {
     getTimestamp: () => timestamp
   }
 };
-
 
 Graphics.OrbitDrawNode = OrbitDrawNode;
 Graphics.ExplosionDrawNode = ExplosionDrawNode;

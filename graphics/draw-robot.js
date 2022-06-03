@@ -1,41 +1,6 @@
 import {Timestamp, degToRad} from "../common/utils.js";
-import Explosion from "./explosion.js";
-import {Vec3} from "../common/domain.js";
+import {Booster} from "./explosion.js";
 
-
-const Particle = Explosion.Particle;
-
-const Booster = (_position, _velocity) => {
-  const position = _position;
-  const velocity = _velocity;
-  const startTime = Timestamp.now();
-
-  const colorArr = ['aqua', 'blue', 'cornflowerblue', 'cyan', 'deepskyblue', 'dodgerblue', 'lightskyblue', 'paleturquoise', 'powderblue', 'royalblue', 'skyblue'];
-  const RADIUS = 10;
-
-  const particlePosition = Vec3(position.getX() + ((Math.random() - 0.5) * (RADIUS) * 2), 0, position.getZ() + ((Math.random() - 0.5) * (RADIUS) * 2));
-  const particleVelocity = velocity.copyOf().mulXyzAndGet(0.7, 0, 0.7).addXyzAndGet(((Math.random() - 0.5) * (Math.random() * 2)), 0,  ((Math.random() - 0.5) * (Math.random() * 2)));//;
-  const particleRadius = Math.random() * RADIUS / 2;
-  const particle = Particle(particlePosition, particleVelocity, colorArr[Math.trunc(Math.random() * colorArr.length)], particleRadius);
-
-
-  const draw = (context) => {
-    if (particle.isNotDone()) {
-      particle.draw(context);
-    }
-  };
-
-  const update = () => {
-    particle.update();
-  };
-
-  const isNotDone = () => (Timestamp.now().getSecond() - startTime.getSecond()) < 5 || particle.isNotDone();
-  const isDone = () => !isNotDone();
-
-  return {
-    draw, update, isDone, isNotDone
-  }
-};
 
 const boosters = [];
 
@@ -69,7 +34,6 @@ const drawRobot = (context, unit, planetTraversal, boosterDrawBuffer) => {
 
   context.save();
 
-
   context.translate(unitPosition.getX(), unitPosition.getZ());
   context.rotate(unitBodyFrame.getOrientation());
   context.rotate(degToRad(90));
@@ -79,8 +43,6 @@ const drawRobot = (context, unit, planetTraversal, boosterDrawBuffer) => {
 
   const robotPositionZ = 10 / robotScale;
   context.lineWidth = 1 / robotScale;
-
-  // boosters.forEach((booster) => booster.draw(context));
 
   if (planetTraversal === null) {
     context.strokeStyle = 'black';

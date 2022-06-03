@@ -39,6 +39,8 @@ const Particle = (_position, _velocity, _color, _radius, _alpha = 1, _decay = 0.
   }
 };
 
+const EXPLOSION_COLORS = ['red', 'darkred', 'firebrick', 'maroon', 'crimson', 'orangered', 'orange', 'darkorange', 'lightyellow', 'yellow', 'gold', 'goldenrod', 'white'];
+
 const Explosion = (_position, _velocity, _body) => {
   const position = _position;
   const velocity = _velocity;
@@ -46,13 +48,11 @@ const Explosion = (_position, _velocity, _body) => {
   const particles = [];
   const startTime = Timestamp.now();
 
-  const colorArr = ['red', 'darkred', 'firebrick', 'maroon', 'crimson', 'orangered', 'orange', 'darkorange', 'lightyellow', 'yellow', 'gold', 'goldenrod', 'white'];
-
   for (let i = 0; i <= 10 + (Math.trunc(Math.random() * body.getRadius() * 2)); i++) {
     const particlePosition = Vec3(position.getX() + ((Math.random() - 0.5) * (body.getRadius()) * 2), 0, position.getZ() + ((Math.random() - 0.5) * (body.getRadius()) * 2));
-    const particleVelocity = velocity.copyOf().mulXyzAndGet(0.7, 0, 0.7).addXyzAndGet(((Math.random() - 0.5) * (Math.random() * 2)), 0,  ((Math.random() - 0.5) * (Math.random() * 2)));//;
+    const particleVelocity = velocity.copyOf().mulXyzAndGet(0.7, 0, 0.7).addXyzAndGet(((Math.random() - 0.5) * (Math.random() * 2)), 0,  ((Math.random() - 0.5) * (Math.random() * 2)));
     const particleRadius = Math.random() * body.getRadius() / 2;
-    const particle = Particle(particlePosition, particleVelocity, colorArr[Math.trunc(Math.random() * colorArr.length)], particleRadius);
+    const particle = Particle(particlePosition, particleVelocity, EXPLOSION_COLORS[Math.trunc(Math.random() * EXPLOSION_COLORS.length)], particleRadius);
     particles.push(particle);
   }
 
@@ -75,7 +75,36 @@ const Explosion = (_position, _velocity, _body) => {
   }
 };
 
-Explosion.Particle = Particle;
+const BOOSTER_RADIUS = 10;
+const BOOSTER_COLORS = ['aqua', 'blue', 'cornflowerblue', 'cyan', 'deepskyblue', 'dodgerblue', 'lightskyblue', 'paleturquoise', 'powderblue', 'royalblue', 'skyblue'];
+
+const Booster = (_position, _velocity) => {
+  const position = _position;
+  const velocity = _velocity;
+  const startTime = Timestamp.now();
+
+  const particlePosition = Vec3(position.getX() + ((Math.random() - 0.5) * (BOOSTER_RADIUS) * 2), 0, position.getZ() + ((Math.random() - 0.5) * (BOOSTER_RADIUS) * 2));
+  const particleVelocity = velocity.copyOf().mulXyzAndGet(0.7, 0, 0.7).addXyzAndGet(((Math.random() - 0.5) * (Math.random() * 2)), 0, ((Math.random() - 0.5) * (Math.random() * 2)));
+  const particleRadius = Math.random() * BOOSTER_RADIUS / 2;
+  const particle = Particle(particlePosition, particleVelocity, BOOSTER_COLORS[Math.trunc(Math.random() * BOOSTER_COLORS.length)], particleRadius);
+
+  const draw = (context) => {
+    if (particle.isNotDone()) {
+      particle.draw(context);
+    }
+  };
+
+  const update = () => {
+    particle.update();
+  };
+
+  const isNotDone = () => (Timestamp.now().getSecond() - startTime.getSecond()) < 5 || particle.isNotDone();
+  const isDone = () => !isNotDone();
+
+  return {
+    draw, update, isDone, isNotDone
+  }
+};
 
 
-export default Explosion;
+export {Particle, Explosion, Booster};
