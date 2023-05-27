@@ -149,7 +149,7 @@ const Sound = () => {
 
                 const stopAfterLastScheduled = () => {
                   clearTimeout(stopTimeoutId);
-                  const lastBarScheduledBarEndSecs = conductor.lastBarScheduledFor + conductorLib.barLengthSecs;
+                  const lastBarScheduledBarEndSecs = conductor.lastBarScheduledFor + conductor.barLengthSecs;
                   const lastBarScheduledBarEndFromNow = lastBarScheduledBarEndSecs - conductor.player.currentTime;
                   setTimeout(() => stop(), Math.trunc(lastBarScheduledBarEndFromNow * 1000));
                 };
