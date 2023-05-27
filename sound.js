@@ -99,17 +99,21 @@ const Sound = () => {
             import('https://kairuz.github.io/acyoustic/projects/gymno.js'),
             import('https://kairuz.github.io/acyoustic/projects/climb.js'),
             import('https://kairuz.github.io/acyoustic/projects/predictament.js'),
-            import('https://kairuz.github.io/acyoustic/alternator.js')
+            import('https://kairuz.github.io/acyoustic/scheduler.js'),
+            import('https://kairuz.github.io/acyoustic/alternator.js'),
+            import('https://kairuz.github.io/modality/factory.js')
           ])
       ])
       .then((audioContextAndModules) => {
-        audioContext = audioContextAndModules[0];
+        audioContext  = audioContextAndModules[0];
         const modules = audioContextAndModules[1];
-        const SampleUtils = modules[0];
-        const gymno = modules[1].default;
-        const climb = modules[2].default;
-        const predictament = modules[3].default;
-        const Alternator = modules[4].default;
+        const SampleUtils     = modules[0];
+        const gymno           = modules[1].default;
+        const climb           = modules[2].default;
+        const predictament    = modules[3].default;
+        const Scheduler       = modules[4].default;
+        const Alternator      = modules[5].default;
+        const buildConductor  = modules[6].default;
 
         Promise
           .all([
@@ -118,14 +122,50 @@ const Sound = () => {
             SampleUtils.loadSampleBuffers(audioContext, predictament.samples)
           ])
           .then(() => {
-            const compositionDescriptors = [
-              Alternator.CompositionDescriptor(gymno.compositions.long, gymno.progressions, gymno.samples),
-              Alternator.CompositionDescriptor(climb.compositions.long, climb.progressions, climb.samples),
-              Alternator.CompositionDescriptor(predictament.compositions.long, predictament.progressions, predictament.samples)
+            const schedulers = [
+              Scheduler(gymno.compositions.long, gymno.progressions, gymno.samples, audioContext),
+              Scheduler(climb.compositions.long, climb.progressions, climb.samples, audioContext),
+              Scheduler(predictament.compositions.long, predictament.progressions, predictament.samples, audioContext),
+              (() => {
+                const conductor = buildConductor();
+                let schedulerStartStopCallback = () => {};
+                let stopping = false;
+                let running = false;
+                let stopTimeoutId = null;
+
+                const start = (_schedulerStartStopCallback = () => {}) => {
+                  schedulerStartStopCallback = _schedulerStartStopCallback;
+                  conductor.start();
+                  stopTimeoutId = setTimeout(() => stopAfterLastScheduled(), 5 * 60 * 1000); // play for 5 minutes
+                };
+
+                const stop = (cancelStartStopCallback = false) => {
+                  clearTimeout(stopTimeoutId);
+                  conductor.stop();
+                  if (!cancelStartStopCallback) {
+                    schedulerStartStopCallback();
+                  }
+                };
+
+                const stopAfterLastScheduled = () => {
+                  clearTimeout(stopTimeoutId);
+                  const lastBarScheduledBarEndSecs = conductor.lastBarScheduledFor + conductor.barLengthSecs;
+                  const lastBarScheduledBarEndFromNow = lastBarScheduledBarEndSecs - conductor.player.currentTime;
+                  setTimeout(() => stop(), Math.trunc(lastBarScheduledBarEndFromNow * 1000));
+                };
+
+                return {
+                  start,
+                  stop,
+                  stopAfterLastScheduled,
+                  isRunning: () => running === true,
+                  isStopping: () => stopping === true,
+                  isStopped: () => running === false && stopping === false,
+                };
+              })()
             ];
-            alternator = Alternator(
-              audioContext, compositionDescriptors
-            );
+
+            alternator = Alternator(schedulers);
 
             loaderFnCallback([modules, alternator]);
           });
