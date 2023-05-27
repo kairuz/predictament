@@ -119,15 +119,19 @@ const Sound = () => {
           .all([
             SampleUtils.loadSampleBuffers(audioContext, gymno.samples),
             SampleUtils.loadSampleBuffers(audioContext, climb.samples),
-            SampleUtils.loadSampleBuffers(audioContext, predictament.samples)
+            SampleUtils.loadSampleBuffers(audioContext, predictament.samples),
+            new Promise((resolve) => {
+              const conductor = buildConductor(audioContext);
+              conductor.player.contextInitLoader.get().then(() => resolve(conductor));
+            })
           ])
-          .then(() => {
+          .then((sampleBuffersAndConductor) => {
             const schedulers = [
               Scheduler(gymno.compositions.long, gymno.progressions, gymno.samples, audioContext),
               Scheduler(climb.compositions.long, climb.progressions, climb.samples, audioContext),
               Scheduler(predictament.compositions.long, predictament.progressions, predictament.samples, audioContext),
               (() => {
-                const conductor = buildConductor(audioContext);
+                const conductor = sampleBuffersAndConductor[3];
                 let schedulerStartStopCallback = () => {};
                 let stopping = false;
                 let running = false;
