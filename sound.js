@@ -127,7 +127,7 @@ const Sound = () => {
               Scheduler(climb.compositions.long, climb.progressions, climb.samples, audioContext),
               Scheduler(predictament.compositions.long, predictament.progressions, predictament.samples, audioContext),
               (() => {
-                const conductor = buildConductor();
+                const conductor = buildConductor(audioContext);
                 let schedulerStartStopCallback = () => {};
                 let stopping = false;
                 let running = false;
