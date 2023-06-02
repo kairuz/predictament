@@ -107,13 +107,13 @@ const Sound = () => {
       .then((audioContextAndModules) => {
         audioContext  = audioContextAndModules[0];
         const modules = audioContextAndModules[1];
-        const SampleUtils     = modules[0];
-        const gymno           = modules[1].default;
-        const climb           = modules[2].default;
-        const predictament    = modules[3].default;
-        const Scheduler       = modules[4].default;
-        const Alternator      = modules[5].default;
-        const buildConductor  = modules[6].default;
+        const SampleUtils   = modules[0];
+        const gymno         = modules[1].default;
+        const climb         = modules[2].default;
+        const predictament  = modules[3].default;
+        const Scheduler     = modules[4].default;
+        const Alternator    = modules[5].default;
+        const initConductor = modules[6].default;
 
         Promise
           .all([
@@ -121,8 +121,7 @@ const Sound = () => {
             SampleUtils.loadSampleBuffers(audioContext, climb.samples),
             SampleUtils.loadSampleBuffers(audioContext, predictament.samples),
             new Promise((resolve) => {
-              const conductor = buildConductor(audioContext);
-              conductor.player.contextInitLoader.get().then(() => resolve(conductor));
+              initConductor(audioContext).then((conductor) => resolve(conductor));
             })
           ])
           .then((sampleBuffersAndConductor) => {
