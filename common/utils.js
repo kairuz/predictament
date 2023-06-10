@@ -323,44 +323,15 @@ const Pinger = (_socket) => {
   }
 };
 
-const defaultLoaderFn = (_loaderFnCallback = (_result) => {}) => {};
-const LazyLoader = (_loaderFn = defaultLoaderFn) => {
-  const loaderFn = typeof _loaderFn === 'function' ? _loaderFn : defaultLoaderFn;
-  let loading = false;
-  let loaded = false;
-  const observers = [];
-  let result = null;
-
-  const load = (getCallback) => {
-    loading = true;
-    const loaderFnCallback = (_result) => {
-      result = _result;
-      setTimeout(() => getCallback(result));
-      observers.forEach((observerFn) => setTimeout(() => observerFn(result)));
-      observers.length = 0;
-      loaded = true;
-      loading = false;
-    };
-    loaderFn(loaderFnCallback);
-  };
-
+const LazyLoader = (promiseFn) => {
+  let promise = null;
   return {
-    get: (getCallback) => {
-      if (loaded === false) {
-        if (loading === false) {
-          load(getCallback);
-        }
-        else {
-          observers.push(getCallback);
-        }
+    get: () => {
+      if (promise === null) {
+        promise = Promise.resolve(promiseFn());
       }
-      else {
-        getCallback(result);
-      }
-    },
-    isLoaded: () => loaded,
-    isLoading: () => loading,
-    getResult: () => result
+      return promise;
+    }
   };
 };
 
