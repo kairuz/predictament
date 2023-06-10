@@ -348,14 +348,14 @@
     let sound = null;
     let effects = null;
 
-    const lazySoundLoader = utils.LazyLoader((loaderFnCallback) => {
-      import('./sound.js')
-        .then((_soundModule) => {
-          const Sound = _soundModule.default;
-          sound = Sound();
-          pSound = sound;
-          loaderFnCallback(sound);
-        });
+    const lazySoundLoader = utils.LazyLoader(() => {
+      return import('./sound.js')
+          .then((_soundModule) => {
+            const Sound = _soundModule.default;
+            sound = Sound();
+            pSound = sound;
+            return Promise.resolve(sound);
+          });
     });
 
     window.addEventListener('load', () => {
@@ -374,23 +374,27 @@
 
         musicCheckbox.addEventListener('change', () => {
           if (musicCheckbox.checked) {
-            lazySoundLoader.get((_sound) => _sound.getLazyMusicLoader().get((modulesAndAlternator) => {
-              const alternator = modulesAndAlternator[1];
-              alternator.start();
-            }));
+            lazySoundLoader.get()
+                .then((_sound) => _sound.getLazyAlternatorLoader().get()
+                    .then((alternator) => {
+                      alternator.start();
+                    }));
           }
           else {
-            if (sound !== null && sound.getAlternator() !== null) {
-              sound.getAlternator().stop();
+            if (sound !== null) {
+              sound.getLazyAlternatorLoader().get().then((alternator) => alternator.stop());
             }
           }
         });
         soundFxCheckbox.addEventListener('change', () => {
           if (soundFxCheckbox.checked) {
-            lazySoundLoader.get((_sound) => _sound.getLazySoundFxLoader().get((sampleUtilsAndEffects) => {
-              effects = sampleUtilsAndEffects[1];
-              pEffects = effects;
-            }));
+            lazySoundLoader.get()
+                .then((_sound) => _sound.getLazySoundFxLoader().get()
+                    .then((sampleUtilsAndEffects) => {
+                      effects = sampleUtilsAndEffects[1];
+                      pEffects = effects;
+                    })
+                );
           }
           else {
             effects.stop();
@@ -402,16 +406,21 @@
         game();
 
         if (musicCheckbox.checked) {
-          lazySoundLoader.get((_sound) => _sound.getLazyMusicLoader().get((modulesAndAlternator) => {
-            const alternator = modulesAndAlternator[1];
-            alternator.start();
-          }));
+          lazySoundLoader.get()
+              .then((_sound) => _sound.getLazyAlternatorLoader().get()
+                  .then((alternator) => {
+                    alternator.start();
+                  })
+              );
         }
         if (soundFxCheckbox.checked) {
-          lazySoundLoader.get((_sound) => _sound.getLazySoundFxLoader().get((sampleUtilsAndEffects) => {
-            effects = sampleUtilsAndEffects[1];
-            pEffects = effects;
-          }));
+          lazySoundLoader.get()
+              .then((_sound) => _sound.getLazySoundFxLoader().get()
+                  .then((sampleUtilsAndEffects) => {
+                    effects = sampleUtilsAndEffects[1];
+                    pEffects = effects;
+                  })
+              );
         }
 
       });

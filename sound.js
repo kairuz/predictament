@@ -1,6 +1,72 @@
 import {LazyLoader, Sequence} from "./common/utils.js";
 
 
+const Alternator = (_schedulers,
+                    _alternateCallback = (_schedulerIndex, _schedulersLength) => {},
+                    _stopCallback = (_schedulerIndex, _schedulersLength) => {}) => {
+  const schedulers = [..._schedulers];
+  const alternateCallback = typeof _alternateCallback === 'function' ? _alternateCallback : (_schedulerIndex, _schedulersLength) => {};
+  const stopCallback = typeof _stopCallback === 'function' ? _stopCallback : (_schedulerIndex, _schedulersLength) => {};
+
+  let running = false;
+  let schedulerIndex = schedulers.length - 1;
+  let currScheduler = {
+    stop: () => {},
+    stopAfterLastScheduled : () => {}
+  };
+
+  const alternate = () => {
+    schedulerIndex++;
+    schedulerIndex = schedulerIndex % schedulers.length;
+    currScheduler = schedulers[schedulerIndex];
+
+    currScheduler.start(() => {
+      alternate();
+    });
+    alternateCallback(schedulerIndex, schedulers.length);
+  };
+
+  return {
+    isRunning: () => running,
+    start: () => {
+      if (running === false) {
+        running = true;
+        alternate();
+      }
+      else {
+        console.warn(`alternator illegal state - running=${running}`);
+      }
+    },
+    next: () => {
+      currScheduler.stopAfterLastScheduled(true, () => {
+        alternate();
+      });
+    },
+    stop: () => {
+      if (running === true) {
+        running = false;
+        currScheduler.stop(true);
+        stopCallback(schedulerIndex, schedulers.length);
+      }
+      else {
+        console.warn(`alternator illegal state - running=${running}`);
+      }
+    },
+    stopAfterLastScheduled: () => {
+      if (running === true) {
+        currScheduler.stopAfterLastScheduled(true, () => {
+          running = false;
+          stopCallback(schedulerIndex, schedulers.length);
+        });
+      }
+      else {
+        console.warn(`alternator illegal state - running=${running}`);
+      }
+    },
+    get schedulersLength(){return schedulers.length;}
+  };
+};
+
 const Effects = (audioContext, SampleUtils,
                  _booster01Buffer, _booster02Buffer, _booster03Buffer,
                  _death01Buffer,
@@ -45,24 +111,80 @@ const Effects = (audioContext, SampleUtils,
   };
 };
 
+const lazySampleUtilsLoader = LazyLoader(() => import('https://kairuz.github.io/acyoustic/sample-utils.js'));
+
+const loadSampleBuffers = (audioContext, samples) => {
+  return Promise.all(
+      Object.entries(samples)
+          .map((entry) => new Promise((resolve, reject) => {
+            const [sampleName, sample] = entry;
+            lazySampleUtilsLoader.get()
+                .then((SampleUtils) => {
+                  SampleUtils.downloadBuffer(audioContext, sample.path)
+                      .catch((error) => console.error('sample download error ' + sampleName, error))
+                      .then((audioBuffer) => {
+                        if (!audioBuffer) {
+                          reject('invalid buffer');
+                        }
+                        else {
+                          sample.buffer = audioBuffer;
+                          resolve();
+                        }
+                      });
+            });
+          })));
+};
+
+const ConductorScheduler = ((_conductor) => {
+  const conductor = _conductor;
+  let schedulerStartStopCallback = () => {};
+  let stopping = false;
+  let running = false;
+  let stopTimeoutId = null;
+
+  const start = (_schedulerStartStopCallback = () => {}) => {
+    schedulerStartStopCallback = _schedulerStartStopCallback;
+    conductor.start();
+    stopTimeoutId = setTimeout(() => stopAfterLastScheduled(), 5 * 60 * 1000); // play for 5 minutes
+  };
+
+  const stop = (cancelStartStopCallback = false) => {
+    clearTimeout(stopTimeoutId);
+    conductor.stop();
+    if (!cancelStartStopCallback) {
+      schedulerStartStopCallback();
+    }
+  };
+
+  const stopAfterLastScheduled = () => {
+    clearTimeout(stopTimeoutId);
+    const lastBarScheduledBarEndSecs = conductor.lastBarScheduledFor + conductor.barLengthSecs;
+    const lastBarScheduledBarEndFromNow = lastBarScheduledBarEndSecs - conductor.player.currentTime;
+    setTimeout(() => stop(), Math.trunc(lastBarScheduledBarEndFromNow * 1000));
+  };
+
+  return {
+    start,
+    stop,
+    stopAfterLastScheduled,
+    isRunning: () => running === true,
+    isStopping: () => stopping === true,
+    isStopped: () => running === false && stopping === false,
+  };
+});
+
 const Sound = () => {
-  let audioContext = null;
-  let alternator = null;
+  const lazyAudioContextLoader = LazyLoader(() => new AudioContext());
 
-  const lazyAudioContextLoader = LazyLoader((loaderFnCallback) => loaderFnCallback(new AudioContext()));
-
-  const lazySampleUtilsLoader = LazyLoader((loaderFnCallback) => import('https://kairuz.github.io/acyoustic/sample-utils.js').then(loaderFnCallback));
-
-  const lazySoundFxLoader = LazyLoader((loaderFnCallback) => {
-    Promise
+  const lazySoundFxLoader = LazyLoader(() => {
+    return Promise
       .all([
-        new Promise((resolve) => lazyAudioContextLoader.get((audioContext) => resolve(audioContext))),
-        new Promise((resolve) => lazySampleUtilsLoader.get((SampleUtils) => resolve(SampleUtils))),
+        lazyAudioContextLoader.get(),
+        lazySampleUtilsLoader.get()
       ])
       .then((audioContextAndSampleUtils) => {
-        audioContext = audioContextAndSampleUtils[0];
-        const SampleUtils = audioContextAndSampleUtils[1];
-        Promise
+        const [audioContext, SampleUtils] = audioContextAndSampleUtils;
+        return Promise
           .all([
             SampleUtils.downloadBuffer(audioContext, 'https://kairuz.github.io/assets/audio/effects/booster-01.ogg'),
             SampleUtils.downloadBuffer(audioContext, 'https://kairuz.github.io/assets/audio/effects/booster-02.ogg'),
@@ -76,116 +198,82 @@ const Sound = () => {
             SampleUtils.downloadBuffer(audioContext, 'https://kairuz.github.io/assets/audio/effects/spawn-01.ogg')
           ])
           .then((audioBuffers) => {
-            let ind = 0;
+            const [
+              booster01Buffer, booster02Buffer, booster03Buffer,
+              death01Buffer,
+              explosion01Buffer, explosion02Buffer, explosion03Buffer,
+              land01Buffer, leap01Buffer, spawn01Buffer
+            ] = audioBuffers;
             const effects = Effects(audioContext, SampleUtils,
-                                    audioBuffers[ind++], audioBuffers[ind++], audioBuffers[ind++],
-                                    audioBuffers[ind++],
-                                    audioBuffers[ind++], audioBuffers[ind++], audioBuffers[ind++],
-                                    audioBuffers[ind++],
-                                    audioBuffers[ind++],
-                                    audioBuffers[ind++]);
-            loaderFnCallback([SampleUtils, effects]);
+                                    booster01Buffer, booster02Buffer, booster03Buffer,
+                                    death01Buffer,
+                                    explosion01Buffer, explosion02Buffer, explosion03Buffer,
+                                    land01Buffer, leap01Buffer, spawn01Buffer);
+            return Promise.resolve([SampleUtils, effects]);
           });
       });
   });
 
-  const lazyMusicLoader = LazyLoader((loaderFnCallback) => {
-    Promise
+  const lazySchedulersModulesLoader = LazyLoader(() => {
+    return Promise
       .all([
-        new Promise((resolve) => lazyAudioContextLoader.get((audioContext) => resolve(audioContext))),
-        Promise
-          .all([
-            new Promise((resolve) => lazySampleUtilsLoader.get((module) => resolve(module))),
-            import('https://kairuz.github.io/acyoustic/projects/gymno.js'),
-            import('https://kairuz.github.io/acyoustic/projects/climb.js'),
-            import('https://kairuz.github.io/acyoustic/projects/predictament.js'),
-            import('https://kairuz.github.io/acyoustic/scheduler.js'),
-            import('https://kairuz.github.io/acyoustic/alternator.js'),
-            import('https://kairuz.github.io/modality/factory.js')
-          ])
+        import('https://kairuz.github.io/acyoustic/projects/gymno.js'),
+        import('https://kairuz.github.io/acyoustic/projects/climb.js'),
+        import('https://kairuz.github.io/acyoustic/projects/predictament.js'),
+        import('https://kairuz.github.io/acyoustic/scheduler.js'),
+        import('https://kairuz.github.io/modality/factory.js')
+      ]);
+  });
+
+  const lazySchedulersLoader = LazyLoader(() => {
+    return Promise
+      .all([
+        lazyAudioContextLoader.get(),
+        lazySchedulersModulesLoader.get()
       ])
       .then((audioContextAndModules) => {
-        audioContext  = audioContextAndModules[0];
-        const modules = audioContextAndModules[1];
-        const SampleUtils   = modules[0];
-        const gymno         = modules[1].default;
-        const climb         = modules[2].default;
-        const predictament  = modules[3].default;
-        const Scheduler     = modules[4].default;
-        const Alternator    = modules[5].default;
-        const initConductor = modules[6].default;
+        const [
+          audioContext,
+          [
+            {default: gymno},
+            {default: climb},
+            {default: predictament},
+            {default: Scheduler},
+            {default: initConductor}
+          ]
+        ] = audioContextAndModules;
 
-        Promise
+        return Promise
           .all([
-            SampleUtils.loadSampleBuffers(audioContext, gymno.samples),
-            SampleUtils.loadSampleBuffers(audioContext, climb.samples),
-            SampleUtils.loadSampleBuffers(audioContext, predictament.samples),
-            new Promise((resolve) => {
-              initConductor(audioContext).then((conductor) => resolve(conductor));
-            })
+            loadSampleBuffers(audioContext, gymno.samples),
+            loadSampleBuffers(audioContext, climb.samples),
+            loadSampleBuffers(audioContext, predictament.samples),
+            initConductor(audioContext)
           ])
           .then((sampleBuffersAndConductor) => {
-            const schedulers = [
+            return Promise.resolve([
               Scheduler(gymno.compositions.long, gymno.progressions, gymno.samples, audioContext),
               Scheduler(climb.compositions.long, climb.progressions, climb.samples, audioContext),
               Scheduler(predictament.compositions.long, predictament.progressions, predictament.samples, audioContext),
-              (() => {
-                const conductor = sampleBuffersAndConductor[3];
-                let schedulerStartStopCallback = () => {};
-                let stopping = false;
-                let running = false;
-                let stopTimeoutId = null;
-
-                const start = (_schedulerStartStopCallback = () => {}) => {
-                  schedulerStartStopCallback = _schedulerStartStopCallback;
-                  conductor.start();
-                  stopTimeoutId = setTimeout(() => stopAfterLastScheduled(), 5 * 60 * 1000); // play for 5 minutes
-                };
-
-                const stop = (cancelStartStopCallback = false) => {
-                  clearTimeout(stopTimeoutId);
-                  conductor.stop();
-                  if (!cancelStartStopCallback) {
-                    schedulerStartStopCallback();
-                  }
-                };
-
-                const stopAfterLastScheduled = () => {
-                  clearTimeout(stopTimeoutId);
-                  const lastBarScheduledBarEndSecs = conductor.lastBarScheduledFor + conductor.barLengthSecs;
-                  const lastBarScheduledBarEndFromNow = lastBarScheduledBarEndSecs - conductor.player.currentTime;
-                  setTimeout(() => stop(), Math.trunc(lastBarScheduledBarEndFromNow * 1000));
-                };
-
-                return {
-                  start,
-                  stop,
-                  stopAfterLastScheduled,
-                  isRunning: () => running === true,
-                  isStopping: () => stopping === true,
-                  isStopped: () => running === false && stopping === false,
-                };
-              })()
-            ];
-
-            alternator = Alternator(schedulers);
-
-            loaderFnCallback([modules, alternator]);
+              ConductorScheduler(sampleBuffersAndConductor[3])
+            ]);
           });
       });
   });
 
+  const lazyAlternatorLoader = LazyLoader(() => {
+    return lazySchedulersLoader.get().then((schedulers) => Promise.resolve(Alternator(schedulers)));
+  });
+
   return {
-    getAudioContext: () => audioContext,
-    getAlternator: () => alternator,
     getLazyAudioContextLoader: () => lazyAudioContextLoader,
-    getLazySampleUtilsLoader: () => lazySampleUtilsLoader,
     getLazySoundFxLoader: () => lazySoundFxLoader,
-    getLazyMusicLoader: () => lazyMusicLoader
+    getLazyAlternatorLoader: () => lazyAlternatorLoader
   };
 };
 
 Sound.Effects = Effects;
+Sound.lazySampleUtilsLoader = lazySampleUtilsLoader;
 
 
 export default Sound;
