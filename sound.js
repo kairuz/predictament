@@ -135,7 +135,9 @@ const loadSampleBuffers = (audioContext, samples) => {
           })));
 };
 
-const ConductorScheduler = ((_conductor) => {
+
+const modalityVolumeFactorCallback = () => 0.8;
+const ModalityScheduler = ((_conductor) => {
   const conductor = _conductor;
   let schedulerStartStopCallback = () => {};
   let stopping = false;
@@ -248,14 +250,14 @@ const Sound = () => {
             loadSampleBuffers(audioContext, gymno.samples),
             loadSampleBuffers(audioContext, climb.samples),
             loadSampleBuffers(audioContext, predictament.samples),
-            initConductor(audioContext)
+            initConductor(audioContext, modalityVolumeFactorCallback)
           ])
           .then((sampleBuffersAndConductor) => {
             return Promise.resolve([
               Scheduler(gymno.compositions.long, gymno.progressions, gymno.samples, audioContext),
               Scheduler(climb.compositions.long, climb.progressions, climb.samples, audioContext),
               Scheduler(predictament.compositions.long, predictament.progressions, predictament.samples, audioContext),
-              ConductorScheduler(sampleBuffersAndConductor[3])
+              ModalityScheduler(sampleBuffersAndConductor[3])
             ]);
           });
       });
