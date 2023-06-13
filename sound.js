@@ -113,29 +113,6 @@ const Effects = (audioContext, SampleUtils,
 
 const lazySampleUtilsLoader = LazyLoader(() => import('https://kairuz.github.io/acyoustic/sample-utils.js'));
 
-const loadSampleBuffers = (audioContext, samples) => {
-  return Promise.all(
-      Object.entries(samples)
-          .map((entry) => new Promise((resolve, reject) => {
-            const [sampleName, sample] = entry;
-            lazySampleUtilsLoader.get()
-                .then((SampleUtils) => {
-                  SampleUtils.downloadBuffer(audioContext, sample.path)
-                      .catch((error) => console.error('sample download error ' + sampleName, error))
-                      .then((audioBuffer) => {
-                        if (!audioBuffer) {
-                          reject('invalid buffer');
-                        }
-                        else {
-                          sample.buffer = audioBuffer;
-                          resolve();
-                        }
-                      });
-            });
-          })));
-};
-
-
 const modalityVolumeFactorCallback = () => 0.8;
 const ModalityScheduler = ((_conductor) => {
   const conductor = _conductor;
@@ -222,6 +199,7 @@ const Sound = () => {
         import('https://kairuz.github.io/acyoustic/projects/gymno.js'),
         import('https://kairuz.github.io/acyoustic/projects/climb.js'),
         import('https://kairuz.github.io/acyoustic/projects/predictament.js'),
+        lazySampleUtilsLoader.get(),
         import('https://kairuz.github.io/acyoustic/scheduler.js'),
         import('https://kairuz.github.io/modality/factory.js')
       ]);
@@ -240,6 +218,7 @@ const Sound = () => {
             {default: gymno},
             {default: climb},
             {default: predictament},
+            SampleUtils,
             {default: Scheduler},
             {default: initConductor}
           ]
@@ -247,9 +226,9 @@ const Sound = () => {
 
         return Promise
           .all([
-            loadSampleBuffers(audioContext, gymno.samples),
-            loadSampleBuffers(audioContext, climb.samples),
-            loadSampleBuffers(audioContext, predictament.samples),
+            SampleUtils.loadSampleBuffers(audioContext, gymno.samples),
+            SampleUtils.loadSampleBuffers(audioContext, climb.samples),
+            SampleUtils.loadSampleBuffers(audioContext, predictament.samples),
             initConductor(audioContext, modalityVolumeFactorCallback)
           ])
           .then((sampleBuffersAndConductor) => {
