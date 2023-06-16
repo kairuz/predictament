@@ -23,14 +23,14 @@ const calcGravOnPositionFromMassFromPosition = (onPosition, fromPosition, fromMa
   if (onPosition.equals(fromPosition)) {
     return Vec3.zero();
   }
-  const posDiff = fromPosition.diff(onPosition);
-  const distSq = posDiff.sq();
-  const distSqAdded = distSq.getX() + distSq.getZ();
-  const dist = Math.sqrt(distSqAdded);
-  const force = fromMass / distSqAdded;
+  const positionDiff = fromPosition.diff(onPosition);
+  const positionDiffSquared = positionDiff.sq();
+  const positionDiffSquaredSum = positionDiffSquared.getX() + positionDiffSquared.getZ();
+  const distance = Math.sqrt(positionDiffSquaredSum);
+  const force = fromMass / positionDiffSquaredSum;
   const
-      ax = ((posDiff.getX() / dist) * force) * config.getGravConstant(),
-      az = ((posDiff.getZ() / dist) * force) * config.getGravConstant();
+      ax = ((positionDiff.getX() / distance) * force) * config.getGravConstant(),
+      az = ((positionDiff.getZ() / distance) * force) * config.getGravConstant();
   return Vec3(ax, 0, az);
 };
 
@@ -212,8 +212,8 @@ const calcPlanetsCollisionsFromStars = (planets, stars) => {
       const zCenterDiff = Math.abs(posI.getZ() - posJ.getZ());
 
       if (xCenterDiff < combinedRadius && zCenterDiff < combinedRadius) {
-        const distance = Math.sqrt(xCenterDiff ** 2 + zCenterDiff ** 2);
-        if (distance < combinedRadius) {
+        const distanceSq = xCenterDiff ** 2 + zCenterDiff ** 2;
+        if (distanceSq < combinedRadius ** 2) {
           if (!collisions.has(i)) {
             collisions.set(i, [j]);
           }
@@ -245,8 +245,8 @@ const calcAsteroidsCollisionsFromStars = (asteroids, stars) => {
       const zCenterDiff = Math.abs(posI.getZ() - posJ.getZ());
 
       if (xCenterDiff < combinedRadius && zCenterDiff < combinedRadius) {
-        const distance = Math.sqrt(xCenterDiff ** 2 + zCenterDiff ** 2);
-        if (distance < combinedRadius) {
+        const distanceSq = xCenterDiff ** 2 + zCenterDiff ** 2;
+        if (distanceSq < combinedRadius ** 2) {
           if (!collisions.has(i)) {
             collisions.set(i, [j]);
           }
@@ -279,8 +279,8 @@ const calcUnitsCollisionsFromStars = (units, starsFrame, stars) => {
       const zCenterDiff = Math.abs(posI.getZ() - posJ.getZ());
 
       if (xCenterDiff < combinedRadius && zCenterDiff < combinedRadius) {
-        const distance = Math.sqrt(xCenterDiff ** 2 + zCenterDiff ** 2);
-        if (distance < combinedRadius) {
+        const distanceSq = xCenterDiff ** 2 + zCenterDiff ** 2;
+        if (distanceSq < combinedRadius ** 2) {
           if (!collisions.has(i)) {
             collisions.set(i, [j]);
           }
@@ -312,8 +312,8 @@ const calcPlanetsCollisions = (planets) => {
       const zCenterDiff = Math.abs(posI.getZ() - posJ.getZ());
 
       if (xCenterDiff < combinedRadius && zCenterDiff < combinedRadius) {
-        const distance = Math.sqrt(xCenterDiff ** 2 + zCenterDiff ** 2);
-        if (distance < combinedRadius) {
+        const distanceSq = xCenterDiff ** 2 + zCenterDiff ** 2;
+        if (distanceSq < combinedRadius ** 2) {
           if (!collisions.has(i)) {
             collisions.set(i, [j]);
           }
@@ -345,9 +345,8 @@ const calcAsteroidsCollisionsFromPlanets = (asteroids, planets) => {
       const zCenterDiff = Math.abs(posI.getZ() - posJ.getZ());
 
       if (xCenterDiff < combinedRadius && zCenterDiff < combinedRadius) {
-        const distance = Math.sqrt(xCenterDiff ** 2 + zCenterDiff ** 2);
-
-        if (distance < combinedRadius) {
+        const distanceSq = xCenterDiff ** 2 + zCenterDiff ** 2;
+        if (distanceSq < combinedRadius ** 2) {
           if (!collisions.has(i)) {
             collisions.set(i, [j]);
           }
@@ -380,8 +379,8 @@ const calcUnitsCollisionsFromPlanets = (units, unitIndexPlanetTraversal, planets
       const zCenterDiff = Math.abs(posI.getZ() - posJ.getZ());
 
       if (xCenterDiff < combinedRadius && zCenterDiff < combinedRadius) {
-        const distance = Math.sqrt(xCenterDiff ** 2 + zCenterDiff ** 2);
-        if (distance < combinedRadius) {
+        const distanceSq = xCenterDiff ** 2 + zCenterDiff ** 2;
+        if (distanceSq < combinedRadius ** 2) {
           if (!collisions.has(i)) {
             collisions.set(i, [j]);
           }
@@ -413,8 +412,8 @@ const calcAsteroidsCollisions = (asteroids) => {
       const zCenterDiff = Math.abs(posI.getZ() - posJ.getZ());
 
       if (xCenterDiff < combinedRadius && zCenterDiff < combinedRadius) {
-        const distance = Math.sqrt(xCenterDiff ** 2 + zCenterDiff ** 2);
-        if (distance < combinedRadius) {
+        const distanceSq = xCenterDiff ** 2 + zCenterDiff ** 2;
+        if (distanceSq < combinedRadius ** 2) {
           if (!collisions.has(i)) {
             collisions.set(i, [j]);
           }
@@ -447,8 +446,8 @@ const calcUnitsCollisionsFromAsteroids = (units, asteroidsFrame, asteroids) => {
       const zCenterDiff = Math.abs(posI.getZ() - posJ.getZ());
 
       if (xCenterDiff < combinedRadius && zCenterDiff < combinedRadius) {
-        const distance = Math.sqrt(xCenterDiff ** 2 + zCenterDiff ** 2);
-        if (distance < combinedRadius) {
+        const distanceSq = xCenterDiff ** 2 + zCenterDiff ** 2;
+        if (distanceSq < combinedRadius ** 2) {
           if (!collisions.has(i)) {
             collisions.set(i, [j]);
           }
@@ -481,8 +480,8 @@ const calcUnitsCollisions = (units) => {
       const zCenterDiff = Math.abs(posI.getZ() - posJ.getZ());
 
       if (xCenterDiff < combinedRadius && /*yCenterDiff < combinedRadius ||*/ zCenterDiff < combinedRadius) {
-        const distance = Math.sqrt(xCenterDiff ** 2 + /*yCenterDiff ** 2 +*/ zCenterDiff ** 2);
-        if (distance < combinedRadius) {
+        const distanceSq = xCenterDiff ** 2 + /*yCenterDiff ** 2 +*/ zCenterDiff ** 2;
+        if (distanceSq < combinedRadius ** 2) {
           if (!collisions.has(i)) {
             collisions.set(i, [j]);
           }
@@ -694,9 +693,9 @@ const handleEtherealBodiesCollisions = (units, planetsTraversals, unitIndexPlane
         (unitPosition.getX() > (INSCRIBED_SQUARE_SIDE_LENGTH - unit.getRadius()) || unitPosition.getX() < (-INSCRIBED_SQUARE_SIDE_LENGTH + unit.getRadius()) ||
          unitPosition.getZ() > (INSCRIBED_SQUARE_SIDE_LENGTH - unit.getRadius()) || unitPosition.getZ() < (-INSCRIBED_SQUARE_SIDE_LENGTH + unit.getRadius()))) {
 
-      const distance = Math.sqrt(unitPosition.getX() ** 2 + unitPosition.getZ() ** 2);
+      const distanceSq = unitPosition.getX() ** 2 + unitPosition.getZ() ** 2;
 
-      if (distance > (config.getMaxDist() - unit.getRadius())) {
+      if (distanceSq > (config.getMaxDist() ** 2 - unit.getRadius() ** 2)) {
         unitsOutOfBounds.add(i);
       }
     }
@@ -767,9 +766,9 @@ const handleMassiveBodiesCollisions = (second, tick, stars, planets, asteroids, 
         (planetPosition.getX() > (INSCRIBED_SQUARE_SIDE_LENGTH - planet.getRadius()) || planetPosition.getX() < (-INSCRIBED_SQUARE_SIDE_LENGTH + planet.getRadius()) ||
          planetPosition.getZ() > (INSCRIBED_SQUARE_SIDE_LENGTH - planet.getRadius()) || planetPosition.getZ() < (-INSCRIBED_SQUARE_SIDE_LENGTH + planet.getRadius()))) {
 
-      const distance = Math.sqrt(planetPosition.getX() ** 2 + planetPosition.getZ() ** 2);
+      const distanceSq = planetPosition.getX() ** 2 + planetPosition.getZ() ** 2;
 
-      if (distance > (config.getMaxDist() - planet.getRadius())) {
+      if (distanceSq > (config.getMaxDist() ** 2 - planet.getRadius() ** 2)) {
         planetsOutOfBounds.add(i);
       }
     }
@@ -783,9 +782,9 @@ const handleMassiveBodiesCollisions = (second, tick, stars, planets, asteroids, 
         (asteroidPosition.getX() > (INSCRIBED_SQUARE_SIDE_LENGTH - asteroid.getRadius()) || asteroidPosition.getX() < (-INSCRIBED_SQUARE_SIDE_LENGTH + asteroid.getRadius()) ||
          asteroidPosition.getZ() > (INSCRIBED_SQUARE_SIDE_LENGTH - asteroid.getRadius()) || asteroidPosition.getZ() < (-INSCRIBED_SQUARE_SIDE_LENGTH + asteroid.getRadius()))) {
 
-      const distance = Math.sqrt(asteroidPosition.getX() ** 2 + asteroidPosition.getZ() ** 2);
+      const distanceSq = asteroidPosition.getX() ** 2 + asteroidPosition.getZ() ** 2;
 
-      if (distance > (config.getMaxDist() - asteroid.getRadius())) {
+      if (distanceSq > (config.getMaxDist() ** 2 - asteroid.getRadius() ** 2)) {
         asteroidsOutOfBounds.add(i);
       }
     }
