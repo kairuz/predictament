@@ -113,7 +113,7 @@ const Effects = (audioContext, SampleUtils,
 
 const lazySampleUtilsLoader = LazyLoader(() => import('https://kairuz.github.io/acyoustic/sample-utils.js'));
 
-const modalityVolumeFactorCallback = () => 0.8;
+const modalityVolumeFactorCallback = () => 0.7;
 const ModalityScheduler = ((_conductor) => {
   const conductor = _conductor;
   let schedulerStartStopCallback = () => {};
